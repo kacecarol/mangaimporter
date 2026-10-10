@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manga Lettering Tool - Balloon Presets &amp; Thought Fix</title>
+    <script src="fabric.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #333; color: #fff; height: 100vh; overflow: hidden; }
+
+        .main-layout { display: flex; height: 100%; }
+
+        .sidebar {
+            width: 260px; background-color: #2a2a2a; border-right: 1px solid #444;
+            display: flex; flex-direction: column; padding: 15px; overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3); z-index: 10;
+        }
+        .sidebar h2 { font-size: 18px; margin-bottom: 20px; color: #eee; border-bottom: 1px solid #555; padding-bottom: 10px; }
+        .control-group { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #444; }
+        .control-group h3 { font-size: 12px; color: #aaa; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+
+        .btn-primary { width: 100%; padding: 10px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
+        .btn-primary:hover { background-color: #1976D2; }
+        .btn-secondary { width: 100%; padding: 8px; background-color: #444; color: white; border: 1px solid #555; border-radius: 4px; cursor: pointer; margin-bottom: 5px; }
+        .btn-secondary:hover { background-color: #555; }
+
+        select, input[type="number"] { width: 100%; padding: 8px; background: #333; border: 1px solid #555; color: white; border-radius: 4px; margin-bottom: 10px; }
+
+        .workspace {
+            flex: 1;
+            background-color: #555;
+            display: block;
+            position: relative;
+            overflow: auto;
+            padding: 0;
+            text-align: center;
+        }
+
+        .canvas-wrapper {
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            background-color: white;
+            display: inline-block;
+            margin: 50px auto;
+            width: 512px;
+            height: 1024px;
+            overflow: hidden;
+        }
+
+        .canvas-container {
+            transform: scale(0.5);
+            transform-origin: 0 0;
+        }
+
+        #bgInput { display: none; }
+
+        #statusMsg {
+            position: absolute; bottom: 20px; right: 20px; background: rgba(0,0,0,0.7); color: white;
+            padding: 8px 15px; border-radius: 20px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.5s;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="main-layout">
+    <div class="sidebar">
+        <h2>Manga Lettering</h2>
+
+        <div class="control-group">
+            <h3>1. Base Image</h3>
+            <button class="btn-primary" onclick="document.getElementById('bgInput').click()">Upload Page</button>
+            <input type="file" id="bgInput" accept="image/*">
+            <p style="font-size: 10px; color:#888;">Canvas: 1024x2048px<br>Display: 50% (512x1024px)</p>
+        </div>
+
+        <div class="control-group">
+            <h3>2. Add Balloon</h3>
+            <select id="bubbleType">
+                <option value="rect" selected>Rectangle (Box)</option>
+                <option value="round">Rounded (Standard)</option>
+                <option value="ellipse">Ellipse (Shout)</option>
+                <option value="thought">Thought Cloud</option>
+                <option value="callout">Square Callout</option>
+                <option value="explosion">Explosion (16p)</option>
+            </select>
+            <button class="btn-secondary" id="addBubbleBtn">+ Add Balloon</button>
+            <p style="font-size: 11px; color:#888; margin-top:5px;">
+                &bull; <b>Tip:</b> drag the yellow dot to move the tail.<br>
+                &bull; <b>Thought:</b> dots are evenly spaced.<br>
+                &bull; <b>Seamless:</b> tail merges into the balloon.<br>
+                &bull; <b>Delete:</b> select and click the red X.
+            </p>
+        </div>
+
+        <div class="control-group">
+            <h3>3. Text Style</h3>
+            <label style="font-size: 11px; color:#aaa;">Font</label>
+            <select id="fontFamily">
+                <option value="Arial">Arial</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Microsoft YaHei">Microsoft YaHei</option>
+                <option value="SimHei">SimHei (Heiti)</option>
+                <option value="Comic Sans MS">Comic Sans</option>
+            </select>
+            <label style="font-size: 11px; color:#aaa;">Size</label>
+            <input type="number" id="fontSize" value="42" min="10" max="200">
+        </div>
+
+        <div class="control-group" style="border:none;">
+            <button class="btn-primary" style="background-color: #4CAF50;" id="exportBtn">Export JPG</button>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <div class="canvas-wrapper">
+            <canvas id="c"></canvas>
+        </div>
+    </div>
+    <div id="statusMsg">Saved!</div>
+</div>
+
+<script>
+    const canvas = new fabric.Canvas('c', {
+        backgroundColor: '#ffffff',
+        selection: true,
+        preserveObjectStacking: true
+    });
+
+    canvas.setWidth(1024);
+    canvas.setHeight(2048);
+
+    canvas.on('text:editing:entered', function(e) {
+        const textbox = e.target;
+        if(textbox.hiddenTextarea) {
+            textbox.hiddenTextarea.style.position = 'fixed';
+            textbox.hiddenTextarea.style.top = '50%';
+            textbox.hiddenTextarea.style.left = '50%';
+            textbox.hiddenTextarea.style.zIndex = '1000';
+        }
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+        setTimeout(() => window.scrollTo(scrollX, scrollY), 0);
+    });
+
+    // ==========================================
+    // 1. Core: drag & math (Tail Logic)
+    // ==========================================
+
+    function renderTailHandle(ctx, left, top, styleOverride, fabricObject) {
+        const handleRadius = 16;
+        ctx.save();
+        ctx.translate(left, top);
+        ctx.beginPath();
+        ctx.arc(0, 0, handleRadius, 0, 2 * Math.PI, false);
+        ctx.fillStyle = '#FFEB3B';
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#000';
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    function moveTailAction(eventData, transform, x, y) {
+        const tailObj = transform.target;
+        const mainObj = tailObj.parentBubble;
+        if (!mainObj) return false;
+
+        const center = mainObj.getCenterPoint();
+        let angle = Math.atan2(y - center.y, x - center.x);
+        let degrees = fabric.util.radiansToDegrees(angle);
+
+        let radius = 0;
+        if (mainObj.type === 'ellipse') radius = mainObj.rx * mainObj.scaleX;
+        else if (mainObj.type === 'rect') radius = (mainObj.width * mainObj.scaleX) / 2.5;
+        else if (mainObj.type === 'path') radius = (mainObj.width * mainObj.scaleX) / 2.8;
+        else radius = 80;
+
+        let offsetDistance = 0;
+        if (tailObj.isThoughtTail) {
+            offsetDistance = radius + 20;
+        } else {
+            const w = mainObj.getScaledWidth() / 2;
+            const h = mainObj.getScaledHeight() / 2;
+            const distToEdge = (w * h) / Math.sqrt((h * Math.cos(angle))**2 + (w * Math.sin(angle))**2);
+            offsetDistance = distToEdge - 15;
+        }
+
+        const rootLeft = center.x + Math.cos(angle) * offsetDistance;
+        const rootTop = center.y + Math.sin(angle) * offsetDistance;
+
+        if (tailObj.isThoughtTail) {
+            // Thought bubble: base anchored to the balloon edge, tip follows the cursor
+            tailObj.set({
+                left: rootLeft,
+                top: rootTop,
+                angle: degrees - 90
+            });
+
+            const distMouseToRoot = Math.sqrt(Math.pow(x - rootLeft, 2) + Math.pow(y - rootTop, 2));
+            const newScale = Math.max(0.5, distMouseToRoot / 50);
+
+            tailObj.set('scaleY', newScale);
+
+            tailObj.getObjects().forEach(obj => {
+                obj.set('scaleY', 1 / newScale);
+            });
+        } else {
+            // Standard V-tail
+            tailObj.set({
+                left: rootLeft,
+                top: rootTop,
+                angle: degrees - 90
+            });
+            const distMouseToRoot = Math.sqrt(Math.pow(x - rootLeft, 2) + Math.pow(y - rootTop, 2));
+            const newScaleY = Math.max(0.4, distMouseToRoot / 50);
+            tailObj.set('scaleY', newScaleY);
+        }
+
+        tailObj.setCoords();
+        canvas.requestRenderAll();
+        return true;
+    }
+
+    // ==========================================
+    // 2. Delete button
+    // ==========================================
+    function renderDeleteIcon(ctx, left, top, styleOverride, fabricObject) {
+        const size = 30;
+        ctx.save();
+        ctx.translate(left, top);
+        ctx.rotate(fabric.util.degreesToRadians(fabricObject.angle));
+        ctx.beginPath();
+        ctx.arc(0, 0, size/2, 0, 2 * Math.PI, false);
+        ctx.fillStyle = '#d32f2f'; ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+        ctx.beginPath();
+        const s = size/4;
+        ctx.moveTo(-s, -s); ctx.lineTo(s, s);
+        ctx.moveTo(s, -s); ctx.lineTo(-s, s);
+        ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
+        ctx.restore();
+    }
+
+    function deleteObject(eventData, transform) {
+        const target = transform.target;
+        if (target.isMainBubble) {
+            if (target.linkedText) canvas.remove(target.linkedText);
+            if (target.linkedTail) canvas.remove(target.linkedTail);
+            if (target.linkedMask) canvas.remove(target.linkedMask);
+        }
+        canvas.remove(target);
+        canvas.requestRenderAll();
+    }
+
+    fabric.Object.prototype.controls.deleteControl = new fabric.Control({
+        x: 0.5, y: -0.5, offsetY: -16, offsetX: 16, cursorStyle: 'pointer',
+        mouseUpHandler: deleteObject, render: renderDeleteIcon, cornerSize: 30
+    });
+
+
+    // ==========================================
+    // 3. Sync logic
+    // ==========================================
+    canvas.on('mouse:down', function(e) {
+        const p = e.target;
+        if (p && p.isMainBubble) {
+            p._lastLeft = p.left; p._lastTop = p.top;
+            p._lastAngle = p.angle;
+            p._lastScaleX = p.scaleX; p._lastScaleY = p.scaleY;
+        }
+    });
+
+    function syncMaskObject(mainObj) {
+        if (!mainObj.linkedMask) return;
+        const m = mainObj.linkedMask;
+        m.set({
+            left: mainObj.left,
+            top: mainObj.top,
+            angle: mainObj.angle,
+            scaleX: mainObj.scaleX,
+            scaleY: mainObj.scaleY,
+            width: mainObj.width,
+            height: mainObj.height,
+            skewX: mainObj.skewX,
+            skewY: mainObj.skewY,
+            flipX: mainObj.flipX,
+            flipY: mainObj.flipY
+        });
+        m.setCoords();
+    }
+
+    canvas.on('object:moving', function(e) {
+        const p = e.target;
+        if (!p.isMainBubble) return;
+        const dx = p.left - (p._lastLeft ?? p.left);
+        const dy = p.top - (p._lastTop ?? p.top);
+
+        if (p.linkedText) { p.linkedText.left += dx; p.linkedText.top += dy; p.linkedText.setCoords(); }
+        if (p.linkedTail) { p.linkedTail.left += dx; p.linkedTail.top += dy; p.linkedTail.setCoords(); }
+        if (p.linkedMask) { syncMaskObject(p); }
+
+        p._lastLeft = p.left; p._lastTop = p.top;
+    });
+
+    canvas.on('object:rotating', function(e) {
+        const p = e.target;
+        if (!p.isMainBubble) return;
+        const currentAngle = p.angle;
+        const lastAngle = p._lastAngle !== undefined ? p._lastAngle : currentAngle;
+        const delta = currentAngle - lastAngle;
+
+        if (p.linkedTail) {
+            const center = p.getCenterPoint();
+            const tailCenter = p.linkedTail.getCenterPoint();
+            const newPos = fabric.util.rotatePoint(tailCenter, center, fabric.util.degreesToRadians(delta));
+            p.linkedTail.setPositionByOrigin(newPos, 'center', 'top');
+            p.linkedTail.angle += delta;
+            p.linkedTail.setCoords();
+        }
+        if (p.linkedMask) { syncMaskObject(p); }
+        if (p.linkedText) {
+            const center = p.getCenterPoint();
+            p.linkedText.left = center.x; p.linkedText.top = center.y; p.linkedText.setCoords();
+        }
+        p._lastAngle = currentAngle;
+    });
+
+    canvas.on('object:scaling', function(e) {
+        const p = e.target;
+        if (!p.isMainBubble) return;
+        const factorX = p.scaleX / (p._lastScaleX ?? p.scaleX);
+        const factorY = p.scaleY / (p._lastScaleY ?? p.scaleY);
+
+        if (p.linkedTail) {
+            const curLeft = p.left; const curTop = p.top;
+            const lastLeft = (p._lastLeft ?? p.left);
+            const lastTop = (p._lastTop ?? p.top);
+            const dx = p.linkedTail.left - lastLeft;
+            const dy = p.linkedTail.top - lastTop;
+            p.linkedTail.left = curLeft + (dx * factorX);
+            p.linkedTail.top = curTop + (dy * factorY);
+            p.linkedTail.setCoords();
+        }
+        if (p.linkedMask) { syncMaskObject(p); }
+
+        if (p.linkedText) { p.linkedText.left = p.left; p.linkedText.top = p.top; p.linkedText.setCoords(); }
+        p._lastScaleX = p.scaleX; p._lastScaleY = p.scaleY;
+        p._lastLeft = p.left; p._lastTop = p.top;
+    });
+
+
+    // ==========================================
+    // 4. Generator (with masking)
+    // ==========================================
+    function createTextbox() {
+        const font = document.getElementById('fontFamily').value;
+        const size = parseInt(document.getElementById('fontSize').value);
+        return new fabric.Textbox('', {
+            fontSize: size, fontFamily: font,
+            originX: 'center', originY: 'center', textAlign: 'center', width: 200,
+            splitByGrapheme: true, fill: 'black',
+            lockScalingX: true, lockScalingY: true
+        });
+    }
+
+    function createMaskObject(mainObj) {
+        let mask;
+        const commonProps = {
+            fill: 'white',
+            strokeWidth: 0,
+            stroke: null,
+            selectable: false,
+            evented: false,
+            originX: mainObj.originX,
+            originY: mainObj.originY,
+            left: mainObj.left,
+            top: mainObj.top,
+            width: mainObj.width,
+            height: mainObj.height,
+            scaleX: mainObj.scaleX,
+            scaleY: mainObj.scaleY,
+            angle: mainObj.angle
+        };
+
+        if (mainObj.type === 'rect') {
+            mask = new fabric.Rect({ ...commonProps, rx: mainObj.rx, ry: mainObj.ry });
+        } else if (mainObj.type === 'ellipse') {
+            mask = new fabric.Ellipse({ ...commonProps, rx: mainObj.rx, ry: mainObj.ry });
+        } else if (mainObj.type === 'path') {
+            mask = new fabric.Path(mainObj.path, { ...commonProps });
+        } else if (mainObj.type === 'polygon') {
+            mask = new fabric.Polygon(mainObj.points, { ...commonProps });
+        }
+        return mask;
+    }
+
+    function createSeamlessTail(left, top, isThought) {
+        let tail;
+        const noControls = {
+            hasBorders: false, hasControls: true,
+            lockMovementX: true, lockMovementY: true,
+            lockRotation: true, lockScalingX: true, lockScalingY: true
+        };
+
+        if (isThought) {
+            // Structure: small circle (Tip) -> mid circle -> big circle (Base)
+            // Origin set to Top (position of Base)
+            let cTip = new fabric.Circle({ radius: 6, fill: 'white', stroke: 'black', strokeWidth: 3, originX:'center', originY:'center', top: 50 });
+            let cMid = new fabric.Circle({ radius: 10, fill: 'white', stroke: 'black', strokeWidth: 3, originX:'center', originY:'center', top: 25 });
+            let cBase = new fabric.Circle({ radius: 15, fill: 'white', stroke: 'black', strokeWidth: 3, originX:'center', originY:'center', top: 0 });
+
+            tail = new fabric.Group([cTip, cMid, cBase], {
+                left: left, top: top,
+                originX: 'center', originY: 'top',
+                ...noControls
+            });
+            tail.isThoughtTail = true;
+
+            tail.controls = {};
+            tail.controls.tipControl = new fabric.Control({
+                x: 0, y: 1,
+                cursorStyle: 'crosshair',
+                actionHandler: moveTailAction,
+                render: renderTailHandle,
+                cornerSize: 36
+            });
+
+        } else {
+            // Standard V-Tail
+            tail = new fabric.Path('M -15 0 L 0 50 L 15 0', {
+                fill: 'white',
+                stroke: 'black', strokeWidth: 3, strokeLineJoin: 'round',
+                originX: 'center', originY: 'top',
+                left: left, top: top,
+                ...noControls
+            });
+
+            tail.controls = {};
+            tail.controls.tipControl = new fabric.Control({
+                x: 0, y: 1,
+                cursorStyle: 'crosshair',
+                actionHandler: moveTailAction,
+                render: renderTailHandle,
+                cornerSize: 36
+            });
+        }
+        return tail;
+    }
+
+    function createBubble(cx, cy) {
+        const type = document.getElementById('bubbleType').value;
+
+
+        const style = {
+            fill: 'white', stroke: 'black', strokeWidth: 3,
+            originX: 'center', originY: 'center',
+            left: cx, top: cy
+        };
+
+        let mainObj, tailObj, maskObj;
+
+        if (type === 'round') mainObj = new fabric.Rect({ ...style, width: 300, height: 180, rx: 30, ry: 30 });
+        else if (type === 'rect') mainObj = new fabric.Rect({ ...style, width: 320, height: 180 });
+        else if (type === 'ellipse') mainObj = new fabric.Ellipse({ ...style, rx: 150, ry: 90 });
+        else if (type === 'thought') {
+            const path = "M 25,60 Q 10,60 10,45 Q 10,30 25,30 Q 30,10 50,10 Q 70,10 75,30 Q 90,30 90,45 Q 90,60 75,60 Q 70,80 50,80 Q 30,80 25,60 z";
+            mainObj = new fabric.Path(path, { ...style, scaleX: 3.8, scaleY: 3.4 });
+        }
+        else if (type === 'callout') mainObj = new fabric.Rect({ ...style, width: 300, height: 90 });
+        else if (type === 'explosion') {
+            const points = [];
+            for (let i = 0; i < 32; i++) {
+                const angle = (Math.PI * 2 * i) / 32;
+                const r = (i % 2 === 0) ? 160 : 100;
+                points.push({ x: Math.cos(angle) * r, y: Math.sin(angle) * r });
+            }
+            mainObj = new fabric.Polygon(points, { ...style });
+        }
+
+        mainObj.isMainBubble = true;
+        mainObj.bubbleType = type;
+        mainObj.lockScalingFlip = true;
+        mainObj.minScaleLimit = 0.2;
+
+        // No tail for explosion and plain rectangle
+        if (type !== 'explosion' && type !== 'rect') {
+            const isThought = (type === 'thought');
+            tailObj = createSeamlessTail(style.left, style.top + 80, isThought);
+            tailObj.parentBubble = mainObj;
+            mainObj.linkedTail = tailObj;
+            moveTailAction(null, { target: tailObj }, style.left, style.top + 250);
+
+            if (!isThought) {
+                maskObj = createMaskObject(mainObj);
+                mainObj.linkedMask = maskObj;
+            }
+        }
+
+        const textObj = createTextbox();
+        if (type === 'explosion') textObj.set('fontWeight', 'bold');
+        textObj.set({ left: style.left, top: style.top });
+
+        mainObj.linkedText = textObj;
+        textObj.parentBubble = mainObj;
+        textObj.set({ lockMovementX: true, lockMovementY: true, hasControls: false, hasBorders: false, evented: false });
+
+        // Render order
+        canvas.add(mainObj);
+        if (tailObj) canvas.add(tailObj);
+        if (maskObj) canvas.add(maskObj);
+        canvas.add(textObj);
+
+        // Init states
+        mainObj._lastLeft = mainObj.left; mainObj._lastTop = mainObj.top;
+        mainObj._lastAngle = mainObj.angle;
+        mainObj._lastScaleX = mainObj.scaleX; mainObj._lastScaleY = mainObj.scaleY;
+
+        canvas.setActiveObject(mainObj);
+        canvas.renderAll();
+        return mainObj;
+    }
+
+    function updateActiveText(prop, value) {
+        const active = canvas.getActiveObject();
+        let targetText = null;
+        if (active && active.type === 'textbox') targetText = active;
+        else if (active && active.isMainBubble && active.linkedText) targetText = active.linkedText;
+        if (targetText) { targetText.set(prop, value); canvas.requestRenderAll(); }
+    }
+    document.getElementById('fontFamily').onchange = (e) => updateActiveText('fontFamily', e.target.value);
+    document.getElementById('fontSize').oninput = (e) => updateActiveText('fontSize', parseInt(e.target.value));
+    canvas.on('selection:created', syncUI);
+    canvas.on('selection:updated', syncUI);
+    function syncUI(e) {
+        const obj = e.selected[0];
+        let textObj = null;
+        if (obj.type === 'textbox') textObj = obj;
+        else if (obj.isMainBubble && obj.linkedText) textObj = obj.linkedText;
+        if (textObj) {
+            document.getElementById('fontFamily').value = textObj.fontFamily;
+            document.getElementById('fontSize').value = textObj.fontSize;
+        }
+    }
+    document.getElementById('bgInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(f) {
+            fabric.Image.fromURL(f.target.result, function(img) {
+                const scale = canvas.width / img.width;
+                canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas), {
+                    scaleX: scale, scaleY: scale,
+                    originX: 'left', originY: 'top',
+                    top: (img.height * scale < canvas.height) ? (canvas.height - img.height * scale) / 2 : 0
+                });
+                showToast("Background Loaded");
+            });
+        };
+        reader.readAsDataURL(file);
+        this.value = '';
+    });
+    document.getElementById('exportBtn').onclick = function() {
+        if (!canvas.backgroundImage) { alert("Please upload a page first!"); return; }
+        canvas.discardActiveObject();
+        canvas.renderAll();
+        const link = document.createElement('a');
+        link.download = 'lettering.jpg';
+        link.href = canvas.toDataURL({ format: 'jpeg', quality: 0.9, multiplier: 1 });
+        link.click();
+        showToast("Exported!");
+    };
+    function showToast(msg) {
+        const el = document.getElementById('statusMsg');
+        el.innerText = msg; el.style.opacity = 1;
+        setTimeout(() => el.style.opacity = 0, 2000);
+    }
+</script>
+<script src="word_textbox.js"></script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>漫畫工具箱 · Manga Tools</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    background: #16181d; color: #e6e8ec; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 48px 20px 60px;
+  }
+  .wrap { width: 100%; max-width: 760px; }
+
+  .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  h1 { font-size: 24px; font-weight: 600; letter-spacing: .5px; }
+  .lang-switch { display: flex; gap: 6px; flex-shrink: 0; padding-top: 4px; }
+  .lang-switch button {
+    font-family: inherit; font-size: 12px; padding: 6px 14px; cursor: pointer;
+    background: #1e2128; color: #8b90a0; border: 1px solid #2c3038; border-radius: 6px;
+    transition: .15s;
+  }
+  .lang-switch button:hover { color: #e6e8ec; border-color: #3a4048; }
+  .lang-switch button.active { background: #2a3340; color: #7fb3e8; border-color: #4a8fe0; }
+
+  .sub { color: #8b90a0; font-size: 13px; margin-top: 8px; line-height: 1.7; }
+  .cards { margin-top: 32px; display: flex; flex-direction: column; gap: 14px; }
+  a.card {
+    display: block; text-decoration: none; color: inherit;
+    background: #1e2128; border: 1px solid #2c3038; border-radius: 10px;
+    padding: 18px 20px; transition: .15s;
+  }
+  a.card:hover { background: #252932; border-color: #4a8fe0; transform: translateY(-1px); }
+  .card-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .card-title .emo { font-size: 20px; }
+  .card-desc { color: #8b90a0; font-size: 13px; margin-top: 8px; line-height: 1.6; }
+  .card-tag {
+    display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px;
+    background: #2a3340; color: #7fb3e8; margin-left: auto; font-weight: 400;
+  }
+  .tip {
+    margin-top: 36px; background: #1e2128; border-left: 3px solid #4a8fe0;
+    border-radius: 0 8px 8px 0; padding: 14px 18px; font-size: 13px;
+    color: #a8adb9; line-height: 1.8;
+  }
+  .tip b { color: #e6e8ec; }
+  footer { margin-top: 28px; font-size: 12px; color: #5c6070; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <h1 id="siteTitle">漫畫工具箱</h1>
+    <div class="lang-switch">
+      <button id="btn-zh" onclick="setLang('zh')">繁中</button>
+      <button id="btn-en" onclick="setLang('en')">English</button>
+    </div>
+  </div>
+
+  <div class="sub" id="siteSub"></div>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="tip">
+    <b id="tipTitle"></b><br>
+    <span id="tipBody"></span>
+  </div>
+
+  <footer id="siteFooter"></footer>
+</div>
+
+<script>
+const I18N = {
+  zh: {
+    htmlLang: 'zh-Hant',
+    title: '漫畫工具箱',
+    docTitle: '漫畫工具箱 · Manga Tools',
+    sub: '純前端工具，不上傳任何圖片 —— 所有處理都在你自己的瀏覽器和電腦上完成。<br>建議使用 Edge 或 Chrome 開啟。',
+    cards: [
+      { emo: '📐', title: '漫畫編輯器 · 分格排版', tag: '繁中介面', href: 'typeset.html',
+        desc: '選用預設範本或自訂分割線切分漫畫格，匯出 JPG。' },
+      { emo: '💬', title: '漫畫嵌字器', tag: '繁中介面', href: 'lettering.html',
+        desc: '在頁面上疊加對話框與文字，調整字體樣式後匯出 JPG。' }
+    ],
+    tipTitle: '使用提示',
+    tip: '· 首次進入會載入繪圖引擎（約 300KB），稍等一兩秒即可。<br>' +
+         '· 圖片全程不離開你的電腦，斷網也能正常使用。<br>' +
+         '· 若頁面空白，請確認是否使用 Safari 或 Firefox —— 請改用 Edge 或 Chrome。',
+    footer: '漫畫工具箱 · 純前端靜態工具'
+  },
+  en: {
+    htmlLang: 'en',
+    title: 'Manga Tools',
+    docTitle: 'Manga Tools · Editor & Lettering',
+    sub: 'Pure front-end tools. No image is ever uploaded — everything is processed in your own browser, on your own computer.<br>Use Edge or Chrome for the best experience.',
+    cards: [
+      { emo: '📐', title: 'Manga Editor · Panel Layout', tag: 'English', href: 'typeset-en.html',
+        desc: 'Choose a preset template or draw custom divider lines to split manga panels, then export as JPG.' },
+      { emo: '💬', title: 'Manga Lettering', tag: 'English', href: 'lettering-en.html',
+        desc: 'Overlay speech balloons and text on a page, adjust the font style, then export as JPG.' }
+    ],
+    tipTitle: 'Tips',
+    tip: '· The drawing engine (about 300KB) loads on first open — give it a second or two.<br>' +
+         '· Your images never leave your computer. Works fine even offline.<br>' +
+         '· If the page is blank, check whether you are using Safari or Firefox — switch to Edge or Chrome.',
+    footer: 'Manga Tools · Pure front-end static tool'
+  }
+};
+
+function setLang(lang) {
+  if (!I18N[lang]) lang = 'zh';
+  const t = I18N[lang];
+
+  document.documentElement.lang = t.htmlLang;
+  document.title = t.docTitle;
+  document.getElementById('siteTitle').textContent = t.title;
+  document.getElementById('siteSub').innerHTML = t.sub;
+  document.getElementById('tipTitle').textContent = t.tipTitle;
+  document.getElementById('tipBody').innerHTML = t.tip;
+  document.getElementById('siteFooter').textContent = t.footer;
+
+  document.getElementById('cards').innerHTML = t.cards.map(c =>
+    '<a class="card" href="' + c.href + '">' +
+      '<div class="card-title"><span class="emo">' + c.emo + '</span>' + c.title +
+        '<span class="card-tag">' + c.tag + '</span></div>' +
+      '<div class="card-desc">' + c.desc + '</div>' +
+    '</a>'
+  ).join('');
+
+  document.getElementById('btn-zh').classList.toggle('active', lang === 'zh');
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+
+  try { localStorage.setItem('mangaToolsLang', lang); } catch (e) {}
+}
+
+(function init() {
+  let lang = 'zh';
+  try {
+    const saved = localStorage.getItem('mangaToolsLang');
+    if (saved === 'zh' || saved === 'en') lang = saved;
+    else if (navigator.language && navigator.language.toLowerCase().startsWith('en')) lang = 'en';
+  } catch (e) {}
+  setLang(lang);
+})();
+</script>
+</body>
+</html>

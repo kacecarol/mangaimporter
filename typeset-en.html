@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manga Editor - Coordinate System Fixed</title>
+    <script src="fabric.min.js"></script>
+    <style>
+        /* CSS 保持原样不动 */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background-color: #f0f0f0; }
+        .container { display: flex; height: 100vh; }
+        .toolbar { width: 200px; background-color: #333; color: white; padding: 20px; display: flex; flex-direction: column; }
+        .toolbar h2 { font-size: 18px; margin-bottom: 20px; }
+        .section { margin-bottom: 20px; }
+        .section h3 { font-size: 14px; margin-bottom: 10px; color: #ccc; }
+        .right-sidebar { width: 200px; background-color: #333; color: white; padding: 20px; display: flex; flex-direction: column; }
+        #templatesContainer { overflow-y: auto; max-height: 300px; }
+        button { width: 100%; padding: 8px; margin-bottom: 12px; background-color: #555; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .template-svg { width: 100%; height: 60px; background: white; border-radius: 2px; margin-bottom: 5px; }
+        .template-label { margin-top: 5px; }
+        button:hover { background-color: #777; }
+        .canvas-area { flex: 1; display: flex; justify-content: center; align-items: center; background-color: #e0e0e0; position: relative; overflow: auto; gap: 20px; }
+        .canvas-container { width: 307px !important; height: 614px !important; max-width: 307px !important; max-height: 614px !important; }
+        #mangaCanvas { width: 307px !important; height: 614px !important; box-shadow: 0 0 10px rgba(0, 0, 0, 0.3); }
+        .upload-buttons { position: absolute; width: 307px; height: 614px; pointer-events: none; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+        .upload-btn { position: absolute; background: rgba(0, 0, 0, 0.6); color: white; border: 2px dashed white; border-radius: 4px; padding: 8px; cursor: pointer; font-size: 11px; text-align: center; pointer-events: all; transition: all 0.3s ease; }
+        .upload-btn:hover { background: rgba(0, 0, 0, 0.8); border-color: #4CAF50; }
+        .upload-input { display: none; }
+        .image-controls-panel { width: 180px; background-color: #333; color: white; padding: 15px; border-radius: 4px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.3); display: none; flex-direction: column; }
+        .image-controls-panel h3 { font-size: 14px; margin-bottom: 15px; color: #ccc; }
+        .image-controls-panel input[type="range"] { cursor: pointer; }
+        .image-controls-panel label { cursor: default; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="toolbar">
+            <h2>Manga Editor</h2>
+            <div class="section">
+                <h3>Templates</h3>
+                <div id="templatesContainer">
+                    <button id="single">
+                        <svg class="template-svg" viewBox="0 0 100 200"><rect x="5" y="5" width="90" height="190" fill="white" stroke="black" stroke-width="1"/></svg>
+                        <span class="template-label">Single</span>
+                    </button>
+                    <button id="vertical">
+                        <svg class="template-svg" viewBox="0 0 100 200"><rect x="5" y="5" width="90" height="60" fill="white" stroke="black" stroke-width="1"/><rect x="5" y="70" width="90" height="60" fill="white" stroke="black" stroke-width="1"/><rect x="5" y="135" width="90" height="60" fill="white" stroke="black" stroke-width="1"/></svg>
+                        <span class="template-label">3 Vertical</span>
+                    </button>
+                    <button id="top-bottom">
+                        <svg class="template-svg" viewBox="0 0 100 200"><rect x="5" y="5" width="90" height="90" fill="white" stroke="black" stroke-width="1"/><rect x="5" y="100" width="43" height="95" fill="white" stroke="black" stroke-width="1"/><rect x="52" y="100" width="43" height="95" fill="white" stroke="black" stroke-width="1"/></svg>
+                        <span class="template-label">1+2 Bottom</span>
+                    </button>
+                </div>
+            </div>
+            <div class="section">
+                <h3>Custom Template</h3>
+                <button id="toggleCustomMode">Create Custom</button>
+                <div id="customControls" style="display: none;">
+                    <button id="addLine">Add Line</button>
+                    <button id="clearAll">Clear All</button>
+                    <button id="saveTemplate">Save to New Template</button>
+                </div>
+            </div>
+            <div class="section">
+                <h3>Export</h3>
+                <button id="export">Export JPG</button>
+            </div>
+        </div>
+        
+        <div class="canvas-area">
+            <div class="image-controls-panel" id="imageControls">
+                <h3>Image Controls</h3>
+                <div style="margin-bottom: 10px;"><label style="display: block; margin-bottom: 5px; font-size: 11px;">X Position: <span id="xValue">0</span>%</label><input type="range" id="xSlider" min="-1000" max="1000" value="0" step="1"></div>
+                <div style="margin-bottom: 10px;"><label style="display: block; margin-bottom: 5px; font-size: 11px;">Y Position: <span id="yValue">0</span>%</label><input type="range" id="ySlider" min="-1000" max="1000" value="0" step="1"></div>
+                <div style="margin-bottom: 10px;"><label style="display: block; margin-bottom: 5px; font-size: 11px;">Scale: <span id="scaleValue">100</span>%</label><input type="range" id="scaleSlider" min="0" max="1000" value="100" step="1"></div>
+                <div style="margin-bottom: 10px;"><label style="display: block; margin-bottom: 5px; font-size: 11px;">Rotation: <span id="rotationValue">0</span>°</label><input type="range" id="rotationSlider" min="-180" max="180" value="0" step="5"></div>
+            </div>
+            <div style="position: relative; display: flex; justify-content: center; align-items: center;">
+                <canvas id="mangaCanvas" width="1024" height="2048"></canvas>
+                <div class="upload-buttons" id="uploadButtons"></div>
+            </div>
+            <div id="hintText" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 4px; font-size: 14px; pointer-events: none; display: none; z-index: 1000;"></div>
+        </div>
+    </div>
+    
+    <script>
+        // --- 核心配置 ---
+        const WIDTH = 1024;
+        const HEIGHT = 2048;
+        const SCALE = 0.3; 
+        const BOUNDARY_BAND_WIDTH = 20; 
+        
+        const canvas = new fabric.Canvas('mangaCanvas', {
+            backgroundColor: 'white',
+            selection: false,
+            preserveObjectStacking: true
+        });
+
+        // 模版数据
+        const templates = {
+            single: [[{x:20,y:20}, {x:1004,y:20}, {x:1004,y:2028}, {x:20,y:2028}]],
+            vertical: [
+                [{x:20,y:20}, {x:1004,y:20}, {x:1004,y:660}, {x:20,y:660}],
+                [{x:20,y:680}, {x:1004,y:680}, {x:1004,y:1320}, {x:20,y:1320}],
+                [{x:20,y:1340}, {x:1004,y:1340}, {x:1004,y:1980}, {x:20,y:1980}]
+            ],
+            'top-bottom': [
+                [{x:20,y:20}, {x:1004,y:20}, {x:1004,y:920}, {x:20,y:920}],
+                [{x:20,y:940}, {x:502,y:940}, {x:502,y:2028}, {x:20,y:2028}],
+                [{x:522,y:940}, {x:1004,y:940}, {x:1004,y:2028}, {x:522,y:2028}]
+            ]
+        };
+        
+        let currentPanels = []; 
+        let uploadedImages = [];
+        let isCustomMode = false;
+        let isDrawing = false;
+        let splitStartPoint = null; 
+        let splitLineVisual = null; 
+        let targetSplitPanel = null; 
+        let clickPointVisual = null; 
+
+        // --- 核心修复：坐标映射系统 ---
+        // 专门解决 CSS 307px 显示与 Canvas 1024px 逻辑的不匹配问题
+        function getFixedPointer(e) {
+            // 获取 Canvas DOM 元素在屏幕上的真实矩形区域
+            const rect = canvas.getElement().getBoundingClientRect();
+            
+            // 获取原生鼠标事件对象
+            const evt = e.e ? e.e : e;
+            
+            // 计算缩放比例：Canvas内部宽度 / CSS显示宽度
+            // 例如 1024 / 307 ≈ 3.33
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            // 计算修正后的坐标
+            return {
+                x: (evt.clientX - rect.left) * scaleX,
+                y: (evt.clientY - rect.top) * scaleY
+            };
+        }
+
+        function getAbsolutePoints(poly) {
+            const matrix = poly.calcTransformMatrix();
+            return poly.points.map(p => {
+                const point = new fabric.Point(p.x, p.y);
+                return fabric.util.transformPoint(point, matrix);
+            });
+        }
+
+        // 射线法判断点是否在多边形内
+        function isPointInPolygon(p, vertices) {
+            let inside = false;
+            for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+                const xi = vertices[i].x, yi = vertices[i].y;
+                const xj = vertices[j].x, yj = vertices[j].y;
+                const intersect = ((yi > p.y) !== (yj > p.y)) &&
+                    (p.x < (xj - xi) * (p.y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        function createPanelFromPoints(absPoints) {
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            absPoints.forEach(p => {
+                if (p.x < minX) minX = p.x;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.y > maxY) maxY = p.y;
+            });
+
+            const width = maxX - minX;
+            const height = maxY - minY;
+            const centerX = minX + width / 2;
+            const centerY = minY + height / 2;
+
+            const relativePoints = absPoints.map(p => ({
+                x: p.x - centerX,
+                y: p.y - centerY
+            }));
+
+            const poly = new fabric.Polygon(relativePoints, {
+                left: centerX,
+                top: centerY,
+                originX: 'center',
+                originY: 'center',
+                fill: 'transparent',
+                stroke: 'black',
+                strokeWidth: 2,
+                selectable: false,
+                evented: false,
+                objectCaching: false
+            });
+
+            const text = new fabric.Text(`${Math.round(width)} x ${Math.round(height)}`, {
+                fontSize: 24,
+                fill: '#888',
+                originX: 'center',
+                originY: 'center',
+                left: centerX,
+                top: centerY,
+                selectable: false,
+                evented: false
+            });
+            poly.dimText = text;
+
+            return { poly, text };
+        }
+
+        function clipPolygonByHalfPlane(points, p1, p2) {
+            const result = [];
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const A = -dy;
+            const B = dx;
+            const C = -(A * p1.x + B * p1.y);
+
+            for (let i = 0; i < points.length; i++) {
+                const cur = points[i];
+                const next = points[(i + 1) % points.length];
+                const dCur = A * cur.x + B * cur.y + C;
+                const dNext = A * next.x + B * next.y + C;
+
+                if (dCur >= -1e-9) result.push(cur);
+                if ((dCur > 0 && dNext < 0) || (dCur < 0 && dNext > 0)) {
+                    const t = dCur / (dCur - dNext);
+                    result.push({ 
+                        x: cur.x + t * (next.x - cur.x),
+                        y: cur.y + t * (next.y - cur.y)
+                    });
+                }
+            }
+            return result;
+        }
+
+        // --- 初始化 ---
+
+        function createTemplate(type) {
+            canvas.clear();
+            currentPanels = [];
+            uploadedImages = [];
+            
+            const rawData = templates[type];
+            rawData.forEach(points => {
+                const { poly, text } = createPanelFromPoints(points);
+                canvas.add(poly);
+                canvas.add(text);
+                currentPanels.push(poly);
+            });
+            refreshUploadButtons();
+            
+            canvas.forEachObject(o => { if(o.type==='image') o.selectable = true; });
+        }
+
+        function refreshUploadButtons() {
+            const container = document.getElementById('uploadButtons');
+            container.innerHTML = '';
+            
+            if(isCustomMode && isDrawing) return; 
+
+            currentPanels.forEach(panel => {
+                const center = panel.getCenterPoint();
+                
+                const btn = document.createElement('div');
+                btn.className = 'upload-btn';
+                btn.innerHTML = `<input type="file" class="upload-input" accept="image/*"><div>+ Upload</div>`;
+                
+                const btnW = 80, btnH = 40;
+                const cssLeft = center.x * SCALE - btnW / 2;
+                const cssTop = center.y * SCALE - btnH / 2;
+
+                btn.style.left = cssLeft + 'px';
+                btn.style.top = cssTop + 'px';
+                btn.style.width = btnW + 'px';
+                btn.style.height = btnH + 'px';
+
+                btn.onclick = () => btn.querySelector('input').click();
+                btn.querySelector('input').onchange = (e) => handleUpload(e, panel);
+                
+                container.appendChild(btn);
+            });
+        }
+
+        function toggleCustomMode() {
+            isCustomMode = !isCustomMode;
+            const toggleBtn = document.getElementById('toggleCustomMode');
+            const customControls = document.getElementById('customControls');
+            
+            if (isCustomMode) {
+                toggleBtn.textContent = 'Exit Custom';
+                customControls.style.display = 'block';
+                createTemplate('single');
+            } else {
+                toggleBtn.textContent = 'Create Custom';
+                customControls.style.display = 'none';
+                resetSplitState();
+                createTemplate('single');
+            }
+        }
+
+        function addLine() {
+            if (!isCustomMode) return;
+            resetSplitState();
+            isDrawing = true;
+            canvas.defaultCursor = 'crosshair';
+            canvas.selection = false;
+            document.getElementById('uploadButtons').innerHTML = '';
+            showHint('Click inside a panel to set start point');
+        }
+
+        function resetSplitState() {
+            isDrawing = false;
+            canvas.defaultCursor = 'default';
+            if (splitLineVisual) { canvas.remove(splitLineVisual); splitLineVisual = null; }
+            if (clickPointVisual) { canvas.remove(clickPointVisual); clickPointVisual = null; }
+            targetSplitPanel = null;
+            splitStartPoint = null;
+            hideHint();
+            if(isCustomMode) refreshUploadButtons();
+        }
+
+        // --- 鼠标交互 (核心修复) ---
+
+        canvas.on('mouse:down', (e) => {
+            if (!isDrawing) {
+                if(e.target && e.target.type === 'image') {
+                    canvas.setActiveObject(e.target);
+                }
+                return;
+            }
+
+            // 使用修正后的坐标！
+            const pointer = getFixedPointer(e);
+
+            if (!targetSplitPanel) {
+                // 第一步：找点击的格子
+                let found = null;
+                for (let p of currentPanels) {
+                    const absPoints = getAbsolutePoints(p);
+                    if (isPointInPolygon(pointer, absPoints)) {
+                        found = p;
+                        break;
+                    }
+                }
+
+                if (found) {
+                    targetSplitPanel = found;
+                    splitStartPoint = pointer;
+                    
+                    clickPointVisual = new fabric.Circle({
+                        left: pointer.x, top: pointer.y, radius: 5, fill: 'red', 
+                        originX: 'center', originY: 'center', selectable: false, evented: false
+                    });
+                    canvas.add(clickPointVisual);
+                    showHint('Move mouse to position line, Click again to split');
+                }
+            } else {
+                // 第二步：执行切割
+                performSplit(targetSplitPanel, splitStartPoint, pointer);
+                resetSplitState();
+            }
+        });
+
+        canvas.on('mouse:move', (e) => {
+            if (!isDrawing || !splitStartPoint || !targetSplitPanel) return;
+            
+            // 使用修正后的坐标！
+            const pointer = getFixedPointer(e);
+            
+            if (splitLineVisual) canvas.remove(splitLineVisual);
+            
+            const dx = pointer.x - splitStartPoint.x;
+            const dy = pointer.y - splitStartPoint.y;
+            const angle = Math.atan2(dy, dx);
+            const dist = 3000;
+            
+            splitLineVisual = new fabric.Line([
+                splitStartPoint.x - Math.cos(angle)*dist, splitStartPoint.y - Math.sin(angle)*dist,
+                splitStartPoint.x + Math.cos(angle)*dist, splitStartPoint.y + Math.sin(angle)*dist
+            ], {
+                stroke: 'red', strokeWidth: 2, strokeDashArray: [10, 10], 
+                selectable: false, evented: false
+            });
+            canvas.add(splitLineVisual);
+            canvas.renderAll();
+        });
+
+        function performSplit(panel, pStart, pEnd) {
+            const polyPoints = getAbsolutePoints(panel);
+            
+            const dx = pEnd.x - pStart.x;
+            const dy = pEnd.y - pStart.y;
+            const len = Math.sqrt(dx*dx + dy*dy);
+            if (len < 5) return; 
+            
+            const nx = -dy / len;
+            const ny = dx / len;
+            const halfGap = BOUNDARY_BAND_WIDTH / 2;
+
+            const p1_offset = { x: pStart.x + nx * halfGap, y: pStart.y + ny * halfGap };
+            const p2_offset = { x: pEnd.x + nx * halfGap, y: pEnd.y + ny * halfGap };
+            const p3_offset = { x: pStart.x - nx * halfGap, y: pStart.y - ny * halfGap };
+            const p4_offset = { x: pEnd.x - nx * halfGap, y: pEnd.y - ny * halfGap };
+
+            const newPointsA = clipPolygonByHalfPlane(polyPoints, p1_offset, p2_offset);
+            const newPointsB = clipPolygonByHalfPlane(polyPoints, p4_offset, p3_offset);
+
+            if (newPointsA.length < 3 || newPointsB.length < 3) {
+                alert("Split failed: Line did not cross the panel completely.");
+                return;
+            }
+
+            if (panel.dimText) canvas.remove(panel.dimText);
+            removeExistingImage(panel); 
+            currentPanels = currentPanels.filter(p => p !== panel);
+            canvas.remove(panel);
+
+            const objA = createPanelFromPoints(newPointsA);
+            canvas.add(objA.poly); canvas.add(objA.text);
+            currentPanels.push(objA.poly);
+
+            const objB = createPanelFromPoints(newPointsB);
+            canvas.add(objB.poly); canvas.add(objB.text);
+            currentPanels.push(objB.poly);
+
+            canvas.renderAll();
+        }
+
+        // --- 图片上传 ---
+
+        function handleUpload(event, panel) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                fabric.Image.fromURL(e.target.result, (img) => {
+                    const center = panel.getCenterPoint();
+                    const bbox = panel.getBoundingRect();
+                    
+                    const scale = Math.max(bbox.width / img.width, bbox.height / img.height);
+
+                    img.set({
+                        scaleX: scale, scaleY: scale,
+                        left: center.x, top: center.y,
+                        originX: 'center', originY: 'center',
+                        selectable: true, evented: true,
+                        originalPanel: panel 
+                    });
+
+                    const absPoints = getAbsolutePoints(panel);
+                    img.clipPath = new fabric.Polygon(absPoints, { absolutePositioned: true });
+
+                    removeExistingImage(panel);
+                    uploadedImages.push(img);
+                    canvas.add(img);
+                    canvas.setActiveObject(img);
+                    
+                    updateSlidersFromImage(img);
+                    document.getElementById('imageControls').style.display = 'block';
+                    canvas.renderAll();
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeExistingImage(panel) {
+            for (let i = uploadedImages.length - 1; i >= 0; i--) {
+                if (uploadedImages[i].originalPanel === panel) {
+                    canvas.remove(uploadedImages[i]);
+                    uploadedImages.splice(i, 1);
+                }
+            }
+        }
+
+        // --- 辅助功能 ---
+
+        function saveTemplate() {
+            if (!isCustomMode) return;
+            const tplId = `custom_${Date.now()}`;
+            const panelData = currentPanels.map(p => getAbsolutePoints(p));
+            templates[tplId] = panelData;
+
+            let svgContent = '';
+            panelData.forEach(points => {
+                const ptsStr = points.map(p => `${(p.x/WIDTH)*100},${(p.y/HEIGHT)*200}`).join(' ');
+                svgContent += `<polygon points="${ptsStr}" fill="white" stroke="black" stroke-width="1"/>`;
+            });
+
+            const div = document.createElement('div');
+            div.style.marginBottom = '10px'; div.style.position = 'relative';
+            div.innerHTML = `
+                <button onclick="createTemplate('${tplId}')">
+                    <svg class="template-svg" viewBox="0 0 100 200">${svgContent}</svg>
+                    <span class="template-label">Custom</span>
+                </button>
+                <button style="position:absolute;top:5px;right:5px;width:20px;height:20px;background:red;color:white;border-radius:50%;padding:0;" onclick="this.parentElement.remove(); delete templates['${tplId}']">×</button>
+            `;
+            document.getElementById('templatesContainer').appendChild(div);
+            toggleCustomMode();
+        }
+
+        function exportJPG() {
+            const upBtns = document.getElementById('uploadButtons');
+            upBtns.style.display = 'none';
+            currentPanels.forEach(p => { if(p.dimText) p.dimText.visible = false; });
+            const bg = new fabric.Rect({width:WIDTH, height:HEIGHT, fill:'white', zIndex:-999});
+            canvas.add(bg); canvas.sendToBack(bg);
+            canvas.renderAll();
+            const data = canvas.toDataURL({ format: 'jpeg', quality: 1, multiplier: 1 });
+            canvas.remove(bg);
+            currentPanels.forEach(p => { if(p.dimText) p.dimText.visible = true; });
+            upBtns.style.display = 'block';
+            const a = document.createElement('a');
+            a.download = 'manga_layout.jpg'; a.href = data; a.click();
+        }
+
+        function showHint(text) {
+            const h = document.getElementById('hintText');
+            h.innerText = text; h.style.display = 'block';
+        }
+        function hideHint() { document.getElementById('hintText').style.display = 'none'; }
+        function clearAll() { createTemplate('single'); }
+
+        const s_x = document.getElementById('xSlider');
+        const s_y = document.getElementById('ySlider');
+        const s_s = document.getElementById('scaleSlider');
+        const s_r = document.getElementById('rotationSlider');
+        let selectedImg = null;
+
+        function updateSlidersFromImage(img) {
+            if(!img) return;
+            selectedImg = img;
+            document.getElementById('rotationValue').innerText = Math.round(img.angle);
+            s_r.value = Math.round(img.angle);
+            document.getElementById('scaleValue').innerText = "100"; s_s.value = 100;
+            document.getElementById('xValue').innerText = "0"; s_x.value = 0;
+            document.getElementById('yValue').innerText = "0"; s_y.value = 0;
+        }
+
+        canvas.on('selection:created', e => {
+            if(e.selected[0] && e.selected[0].type === 'image') {
+                document.getElementById('imageControls').style.display = 'block';
+                updateSlidersFromImage(e.selected[0]);
+            }
+        });
+        canvas.on('selection:cleared', () => document.getElementById('imageControls').style.display = 'none');
+
+        s_x.oninput = function() { if(selectedImg) { 
+            const p = selectedImg.originalPanel; const c = p.getCenterPoint();
+            selectedImg.set('left', c.x + (this.value * 2)); canvas.renderAll(); 
+            document.getElementById('xValue').innerText = this.value;
+        }};
+        s_y.oninput = function() { if(selectedImg) { 
+            const p = selectedImg.originalPanel; const c = p.getCenterPoint();
+            selectedImg.set('top', c.y + (this.value * 2)); canvas.renderAll(); 
+            document.getElementById('yValue').innerText = this.value;
+        }};
+        s_s.oninput = function() { if(selectedImg) {
+            const p = selectedImg.originalPanel; const bbox = p.getBoundingRect();
+            const baseScale = Math.max(bbox.width/selectedImg.width, bbox.height/selectedImg.height);
+            const val = baseScale * (this.value/100);
+            selectedImg.set({scaleX: val, scaleY: val}); canvas.renderAll();
+            document.getElementById('scaleValue').innerText = this.value;
+        }};
+        s_r.oninput = function() { if(selectedImg) {
+            selectedImg.set('angle', parseInt(this.value)); canvas.renderAll();
+            document.getElementById('rotationValue').innerText = this.value;
+        }};
+
+        document.getElementById('single').onclick = () => createTemplate('single');
+        document.getElementById('vertical').onclick = () => createTemplate('vertical');
+        document.getElementById('top-bottom').onclick = () => createTemplate('top-bottom');
+        document.getElementById('toggleCustomMode').onclick = toggleCustomMode;
+        document.getElementById('addLine').onclick = addLine;
+        document.getElementById('clearAll').onclick = clearAll;
+        document.getElementById('saveTemplate').onclick = saveTemplate;
+        document.getElementById('export').onclick = exportJPG;
+
+        createTemplate('single');
+    </script>
+</body>
+</html>
